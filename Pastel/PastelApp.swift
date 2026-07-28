@@ -4338,6 +4338,8 @@ struct ContentView: View {
                         .frame(width: VersionSelectionRow.iconColumnWidth, height: 1)
                     versionHeaderColumn(String(localized: "版本号"), width: columns.version)
                     versionHeaderColumn(String(localized: "版本 ID"), width: columns.versionID)
+                    versionHeaderColumn(String(localized: "记录时间"), width: columns.date)
+                        .help(String(localized: "由所选历史版本数据源提供，不等同于 Apple 官方发布日期。"))
                     versionHeaderColumn(String(localized: "大小"), width: columns.size)
                     HStack(spacing: 0) {
                         Color.clear
@@ -6489,6 +6491,7 @@ struct VersionSelectionRow: View {
     struct Columns {
         let version: CGFloat
         let versionID: CGFloat
+        let date: CGFloat
         let size: CGFloat
         let noUpdates: CGFloat
     }
@@ -6496,6 +6499,7 @@ struct VersionSelectionRow: View {
     static let iconColumnWidth: CGFloat = 50
     static let versionColumnWidth: CGFloat = 132
     static let versionIDColumnWidth: CGFloat = 178
+    static let dateColumnWidth: CGFloat = 148
     static let sizeColumnWidth: CGFloat = 118
     static let noUpdatesColumnWidth: CGFloat = 112
     static let noUpdatesToggleTrailingInset: CGFloat = 8
@@ -6518,9 +6522,10 @@ struct VersionSelectionRow: View {
     static func columns(for fullWidth: CGFloat) -> Columns {
         let baseVersion: CGFloat = 126
         let baseVersionID: CGFloat = 196
+        let baseDate: CGFloat = 148
         let baseSize: CGFloat = 118
         let baseNoUpdates: CGFloat = noUpdatesColumnWidth
-        let natural = baseVersion + baseVersionID + baseSize + baseNoUpdates
+        let natural = baseVersion + baseVersionID + baseDate + baseSize + baseNoUpdates
         let reserved = rowHorizontalPadding * 2 + iconColumnWidth + actionGap + actionColumnWidth
         let available = max(1, fullWidth - reserved)
 
@@ -6529,6 +6534,7 @@ struct VersionSelectionRow: View {
             return Columns(
                 version: baseVersion * scale,
                 versionID: baseVersionID * scale,
+                date: baseDate * scale,
                 size: baseSize * scale,
                 noUpdates: baseNoUpdates * scale
             )
@@ -6536,8 +6542,9 @@ struct VersionSelectionRow: View {
 
         let extra = available - natural
         return Columns(
-            version: baseVersion + extra * 0.28,
-            versionID: baseVersionID + extra * 0.48,
+            version: baseVersion + extra * 0.22,
+            versionID: baseVersionID + extra * 0.32,
+            date: baseDate + extra * 0.22,
             size: baseSize + extra * 0.24,
             noUpdates: baseNoUpdates
         )
@@ -6554,7 +6561,8 @@ struct VersionSelectionRow: View {
         return [
             start + columns.version - visualShift,
             start + columns.version + columns.versionID - visualShift,
-            start + columns.version + columns.versionID + columns.size + noUpdatesDividerInset
+            start + columns.version + columns.versionID + columns.date - visualShift,
+            start + columns.version + columns.versionID + columns.date + columns.size + noUpdatesDividerInset
         ]
     }
 
@@ -6594,6 +6602,13 @@ struct VersionSelectionRow: View {
 
                 HoverCopyIDText(value: record.versionId, isVisible: isHovered, isSelected: isSelected)
                     .frame(width: columns.versionID, alignment: .leading)
+
+                Text(record.date.isEmpty ? "-" : record.date)
+                    .font(.callout.monospacedDigit())
+                    .frame(width: columns.date, alignment: .leading)
+                    .foregroundStyle(secondaryTextStyle)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.76)
 
                 Text(record.size.isEmpty ? "-" : record.size)
                     .font(.callout)
