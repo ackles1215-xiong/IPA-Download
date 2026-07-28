@@ -1511,6 +1511,12 @@ struct VersionRecord: Decodable, Identifiable, Hashable {
     let date: String
     let size: String
     let source: String
+
+    var displayDate: String {
+        let trimmed = date.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > 10 else { return trimmed }
+        return String(trimmed.prefix(10))
+    }
 }
 
 struct VersionsResponse: Decodable {
@@ -6603,12 +6609,11 @@ struct VersionSelectionRow: View {
                 HoverCopyIDText(value: record.versionId, isVisible: isHovered, isSelected: isSelected)
                     .frame(width: columns.versionID, alignment: .leading)
 
-                Text(record.date.isEmpty ? "-" : record.date)
+                Text(record.displayDate.isEmpty ? "-" : record.displayDate)
                     .font(.callout.monospacedDigit())
                     .frame(width: columns.date, alignment: .leading)
                     .foregroundStyle(secondaryTextStyle)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.76)
 
                 Text(record.size.isEmpty ? "-" : record.size)
                     .font(.callout)
