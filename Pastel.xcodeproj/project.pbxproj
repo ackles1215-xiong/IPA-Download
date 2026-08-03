@@ -155,7 +155,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\nRES=\"${CODESIGNING_FOLDER_PATH}/Contents/Resources\"\nmkdir -p \"${RES}/NodeProject\" \"${RES}/node/bin\"\n/usr/bin/rsync -a --delete --exclude '.DS_Store' \"${SRCROOT}/NodeProject/\" \"${RES}/NodeProject/\"\n/bin/cp -f \"${SRCROOT}/node/bin/node\" \"${RES}/node/bin/node\"\n/bin/chmod 755 \"${RES}/node/bin/node\"\n/usr/bin/codesign --force --sign - \"${RES}/node/bin/node\"\n/bin/sh \"${SRCROOT}/Scripts/PatchSparkleLocalizations.sh\" \"${CODESIGNING_FOLDER_PATH}\"\n/usr/bin/xattr -cr \"${CODESIGNING_FOLDER_PATH}\" || true\n";
+			shellScript = "set -e\nRES=\"${CODESIGNING_FOLDER_PATH}/Contents/Resources\"\nmkdir -p \"${RES}/NodeProject\" \"${RES}/node/bin\"\n/usr/bin/rsync -a --delete --exclude '.DS_Store' --exclude 'test/' \"${SRCROOT}/NodeProject/\" \"${RES}/NodeProject/\"\n/bin/cp -f \"${SRCROOT}/node/bin/node\" \"${RES}/node/bin/node\"\n/bin/chmod 755 \"${RES}/node/bin/node\"\n/usr/bin/codesign --force --sign - \"${RES}/node/bin/node\"\n/bin/sh \"${SRCROOT}/Scripts/PatchSparkleLocalizations.sh\" \"${CODESIGNING_FOLDER_PATH}\"\n/usr/bin/xattr -cr \"${CODESIGNING_FOLDER_PATH}\" || true\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

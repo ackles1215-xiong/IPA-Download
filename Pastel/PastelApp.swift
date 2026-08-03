@@ -894,6 +894,13 @@ func downloadErrorMessage(from log: String) -> String {
     if ipaIsVerificationChallenge(text) {
         return String(localized: "需要完成 Apple 账户双重认证。请输入验证码后继续。")
     }
+    // IPA 已进入签名或下载后处理阶段时，底层库的错误文本可能带有过期
+    // token 字样；这不是重新登录能够解决的问题，应优先显示文件处理失败。
+    if text.contains("文件签名失败")
+        || text.contains("MD5 校验失败")
+        || text.localizedCaseInsensitiveContains("invalid signature") {
+        return String(localized: "IPA 文件处理失败。请重新下载后再试。")
+    }
     if text.localizedCaseInsensitiveContains("Your password has changed")
         || text.localizedCaseInsensitiveContains("password token is expired")
         || text.contains("本地会话可能已失效") {
@@ -921,12 +928,6 @@ func downloadErrorMessage(from log: String) -> String {
         || text.contains("付费应用未购买") {
         return String(localized: "此 Apple 账户暂时无法获取该 App。请确认账号已拥有此 App 后再试。")
     }
-    if text.contains("文件签名失败")
-        || text.contains("MD5 校验失败")
-        || text.localizedCaseInsensitiveContains("invalid signature") {
-        return String(localized: "IPA 文件处理失败。请重新下载后再试。")
-    }
-
     if let detail = lines.reversed().compactMap({ cleanDownloadErrorDetail($0) }).first, !detail.isEmpty {
         return String(localized: "下载未能完成。") + "\n" + detail
     }

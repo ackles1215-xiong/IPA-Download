@@ -7,15 +7,9 @@ import plist from 'plist';
 import {t} from './i18n.js';
 
 export class SignatureClient {
-    constructor(songInfo, email, options = {}) {
+    constructor(songInfo, email) {
         this.expectedMd5 = songInfo?.md5;
         this.metadata = {...songInfo.metadata, 'apple-id': email, userName: email, 'appleId': email, 'com.apple.iTunesStore.downloadInfo': {'accountInfo': {'AppleID': email}}};
-        this.includeAppStoreMetadata = options.includeAppStoreMetadata !== false;
-        this.pastelMetadata = {
-            ...this.metadata,
-            pastelMetadataVersion: 1,
-            pastelRemovesAppStoreUpdates: !this.includeAppStoreMetadata,
-        };
         this.signature = songInfo?.sinfs[0]?.sinf;
         if (!this.signature) {
             const e = new Error(t('sign_init_failed'));
@@ -72,11 +66,7 @@ export class SignatureClient {
             }
             const suppFileEntry = candidates.sort((a, b) => a.name.length - b.name.length)[0];
             const signatureTargetPath = suppFileEntry.name.replace(/\.supp$/i, '.sinf');
-            if (this.includeAppStoreMetadata) {
-                archive.append(Buffer.from(plist.build(this.metadata), 'utf8'), {name: 'iTunesMetadata.plist'});
-            } else {
-                archive.append(Buffer.from(plist.build(this.pastelMetadata), 'utf8'), {name: 'PastelMetadata.plist'});
-            }
+            archive.append(Buffer.from(plist.build(this.metadata), 'utf8'), {name: 'iTunesMetadata.plist'});
             archive.append(Buffer.from(this.signature, 'base64'), {name: signatureTargetPath});
             for (const entry of Object.values(entries)) {
                 if (entry.isDirectory || entry.name === 'iTunesMetadata.plist' || entry.name === 'PastelMetadata.plist' || entry.name === signatureTargetPath) continue;
@@ -99,5 +89,41 @@ export class SignatureClient {
         }
         await fsPromises.rename(tempIpaPath, ipaPath);
         console.log(t('sign_ok'));
+    }
+
+    // 「不再更新」是一个下载后的独立步骤：先完成与普通 IPA 完全相同的
+    // 校验和签名，再从最终归档中移除 App Store 元数据。这样不会改变
+    // Apple 的购买、下载或签名输入路径，也不会以自定义元数据替代它。
+    async removeAppStoreMetadata(ipaPath) {
+        const tempIpaPath = ipaPath + '.metadata.tmp';
+        let readZip;
+        let success = false;
+        try {
+            readZip = new StreamZip.async({file: ipaPath});
+            const entries = await readZip.entries();
+            if (!entries['iTunesMetadata.plist']) return;
+
+            const output = createWriteStream(tempIpaPath);
+            const archive = archiver('zip', {zlib: {level: 1}});
+            archive.pipe(output);
+            for (const entry of Object.values(entries)) {
+                if (entry.isDirectory || entry.name === 'iTunesMetadata.plist') continue;
+                const stream = await readZip.stream(entry.name);
+                archive.append(stream, {name: entry.name});
+            }
+            await archive.finalize();
+            await finished(output);
+            success = true;
+        } catch (error) {
+            const e = new Error(t('sign_failed', {message: error.message}));
+            e.prefix = 'SIGN';
+            throw e;
+        } finally {
+            if (readZip) await readZip.close().catch(() => {
+            });
+            if (!success) await fsPromises.unlink(tempIpaPath).catch(() => {
+            });
+        }
+        await fsPromises.rename(tempIpaPath, ipaPath);
     }
 }
