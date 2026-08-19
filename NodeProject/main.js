@@ -95,9 +95,11 @@ async function runCommand(command, args) {
             CODE: process.env.APPLE_CODE || '',
         });
 
-        // 校验账户模式：优先复用本地会话；没有会话时才登录，避免每次编辑/验证账号都触发新设备登录。
+        // 校验账户模式必须实际向 Apple 重新登录并刷新商店令牌。若只复用本地
+        // 会话，缓存 cookie 即使已被 Apple 撤销也会被本地误判为有效，导致
+        // 设置页显示验证成功、下载时才报会话失效。
         if (process.env.IPA_VALIDATE_LOGIN) {
-            await app.login();
+            await app.login({force: true});
             const storefront = String(app.user?.authHeaders?.['X-Apple-Store-Front'] || '').split('-')[0];
             const addr = app.user?.accountInfo?.address || {};
             printJSON({ok: true, storefront, firstName: addr.firstName || '', lastName: addr.lastName || ''});
