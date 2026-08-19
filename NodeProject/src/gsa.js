@@ -375,7 +375,9 @@ function storePasswordAuthenticate(email, password, code, guid, jar) {
     for (let attempt = 1; attempt <= 4; attempt++) {
         const endpoint = nativeAuthURL(fetchNativeAuthEndpoint(guid), guid);
         res = curlRequest('POST', endpoint, {headers, body, follow: true, timeout: 30, jar});
-        if (res.status !== 0) break;
+        // Apple 的 native 登录端点偶发返回 HTTP 200 但没有正文；这和成功响应
+        // 一样会通过 HTTP 状态检查，却无法解析出令牌。把它视为瞬时失败重试。
+        if (res.status !== 0 && res.body?.length) break;
     }
 
     const parsed = parsePlistLoose(res?.body || Buffer.alloc(0), t('ctx_store_login_resp'));
@@ -416,8 +418,15 @@ function userFromStoreAuth(email, parsed, storeFront, pod, jar) {
 export async function storeLogin(email, password, code, guid, cookieText = '', pod = '') {
     const jar = path.join(tmpDir(), `store-cookies-${crypto.createHash('sha256').update(String(email || '')).digest('hex').slice(0, 12)}.txt`);
     if (cookieText) writeFileSync(jar, cookieText);
-    const {parsed, storeFront, pod: newPod} = storePasswordAuthenticate(email, password, code, guid, jar);
-    return userFromStoreAuth(email, parsed, storeFront, newPod || pod, jar);
+    try {
+        const {parsed, storeFront, pod: newPod} = storePasswordAuthenticate(email, password, code, guid, jar);
+        return userFromStoreAuth(email, parsed, storeFront, newPod || pod, jar);
+    } catch (nativeError) {
+        // 保留 native 登录作为首选；如果它返回空/异常正文，则改用已有的 GSA
+        // SRP 登录路径。两条路径最终都只换取 StoreServices 会话，不改变下载行为。
+        if (nativeError?.code === 'NEEDS_2FA') throw nativeError;
+        return gsaLogin(email, password, code, guid);
+    }
 }
 
 // 主入口：返回与旧 Store.login 兼容的 user 对象。
