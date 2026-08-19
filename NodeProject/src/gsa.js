@@ -9,7 +9,7 @@ import crypto from 'crypto';
 import os from 'os';
 import path from 'path';
 import {execFileSync} from 'child_process';
-import {writeFileSync, readFileSync, existsSync, mkdtempSync, rmSync} from 'fs';
+import {writeFileSync, readFileSync, existsSync, mkdtempSync, rmSync, unlinkSync} from 'fs';
 import plist from 'plist';
 import {t} from './i18n.js';
 
@@ -173,6 +173,39 @@ export function parsePlistLoose(buf, context = t('ctx_apple_resp')) {
 }
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+// 双重认证验证码必须关联首次发起挑战时的 GSA 会话。设置窗口会在用户输入
+// 验证码后重新启动 Node 进程，因此把必要的、短生命周期的会话材料写到已有的
+// 0700 会话目录；验证成功后立即删除。
+function mfaStatePath(email) {
+    const root = process.env.IPA_SESSION_DIR;
+    if (!root || !email) return null;
+    const digest = crypto.createHash('sha256').update(String(email)).digest('hex').slice(0, 24);
+    return path.join(root, `gsa-2fa-${digest}.json`);
+}
+
+function saveMfaState(email, ani, adsid, gsToken) {
+    const target = mfaStatePath(email);
+    if (!target) return;
+    writeFileSync(target, JSON.stringify({ani, adsid, gsToken}), {mode: 0o600});
+}
+
+function loadMfaState(email) {
+    const target = mfaStatePath(email);
+    if (!target || !existsSync(target)) return null;
+    try {
+        const value = JSON.parse(readFileSync(target, 'utf8'));
+        return value?.ani && value?.adsid && value?.gsToken ? value : null;
+    } catch {
+        return null;
+    }
+}
+
+function clearMfaState(email) {
+    const target = mfaStatePath(email);
+    if (!target) return;
+    try { unlinkSync(target); } catch { /* nothing to clear */ }
+}
 
 // 取 anisette 设备标识：遍历所有服务器，全部失败再整体重试一遍（公共服务器经常临时 5xx）。
 async function fetchAnisette() {
@@ -432,13 +465,24 @@ export async function storeLogin(email, password, code, guid, cookieText = '', p
 // 主入口：返回与旧 Store.login 兼容的 user 对象。
 // code 为空且账号需要 2FA 时，会先向受信任设备推送验证码，并抛出「需要双重验证码」。
 export async function gsaLogin(email, password, code, guid) {
-    const ani = await fetchAnisette();
+    const savedMfa = code ? loadMfaState(email) : null;
+    const ani = savedMfa?.ani || await fetchAnisette();
 
-    let {spd, status} = srpLogin(email, password, ani);
+    let spd, status;
+    if (savedMfa) {
+        const ok = validate2fa(ani, savedMfa.adsid, savedMfa.gsToken, code);
+        if (!ok) throw new Error(t('wrong_code'));
+        clearMfaState(email);
+        ({spd, status} = srpLogin(email, password, ani));
+        if (status.au) throw new Error(t('twofa_incomplete'));
+    } else {
+        ({spd, status} = srpLogin(email, password, ani));
+    }
 
     if (status.au === 'trustedDeviceSecondaryAuth' || status.au === 'secondaryAuth') {
         if (!code) {
             send2faPush(ani, spd.adsid, spd.GsIdmsToken);
+            saveMfaState(email, ani, spd.adsid, spd.GsIdmsToken);
             throw needs2faError();
         }
         const ok = validate2fa(ani, spd.adsid, spd.GsIdmsToken, code);
