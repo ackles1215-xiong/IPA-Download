@@ -456,8 +456,8 @@ export async function storeLogin(email, password, code, guid, cookieText = '', p
         return userFromStoreAuth(email, parsed, storeFront, newPod || pod, jar);
     } catch (nativeError) {
         // 保留 native 登录作为首选；如果它返回空/异常正文，则改用已有的 GSA
-        // SRP 登录路径。两条路径最终都只换取 StoreServices 会话，不改变下载行为。
-        if (nativeError?.code === 'NEEDS_2FA') throw nativeError;
+        // SRP 登录路径。双重认证也必须在这里切换：原生端发起的挑战无法在
+        // 新的 Node 进程中恢复，而 GSA 路径会持久化本次挑战所需的临时状态。
         return gsaLogin(email, password, code, guid);
     }
 }
