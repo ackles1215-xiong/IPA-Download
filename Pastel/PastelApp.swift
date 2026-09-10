@@ -1659,6 +1659,12 @@ struct VersionRecord: Decodable, Identifiable, Hashable {
     let date: String
     let size: String
     let source: String
+
+    var displayDate: String {
+        let trimmed = date.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > 10 else { return trimmed }
+        return String(trimmed.prefix(10))
+    }
 }
 
 struct VersionsResponse: Decodable {
@@ -4506,6 +4512,8 @@ struct ContentView: View {
                         .frame(width: VersionSelectionRow.iconColumnWidth, height: 1)
                     versionHeaderColumn(String(localized: "版本号"), width: columns.version)
                     versionHeaderColumn(String(localized: "版本 ID"), width: columns.versionID)
+                    versionHeaderColumn(String(localized: "记录时间"), width: columns.date)
+                        .help(String(localized: "由所选历史版本数据源提供，不等同于 Apple 官方发布日期。"))
                     versionHeaderColumn(String(localized: "大小"), width: columns.size)
                     HStack(spacing: 0) {
                         Color.clear
